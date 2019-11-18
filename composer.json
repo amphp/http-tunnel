@@ -1,0 +1,52 @@
+{
+    "name": "amphp/http-tunnel",
+    "homepage": "https://github.com/amphp/http-tunnel",
+    "description": "HTTP/1.1 CONNECT tunnel connector built on the Amp concurrency framework",
+    "keywords": [
+        "http",
+        "connect",
+        "tunnel",
+        "connector",
+        "async",
+        "amphp"
+    ],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Niklas Keller",
+            "email": "me@kelunik.com"
+        }
+    ],
+    "require": {
+        "php": ">=7.2",
+        "amphp/amp": "^2.4",
+        "amphp/http-client": "dev-master as 4.0",
+        "amphp/socket": "^1"
+    },
+    "require-dev": {
+        "amphp/phpunit-util": "^1.1",
+        "amphp/php-cs-fixer-config": "dev-master",
+        "phpunit/phpunit": "^7 || ^8",
+        "leproxy/leproxy": "^0.2.2",
+        "amphp/react-adapter": "^2.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "Amp\\Http\\Tunnel\\": "src"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Amp\\Http\\Tunnel\\": "test"
+        }
+    },
+    "scripts": {
+        "check": [
+            "@cs",
+            "@test"
+        ],
+        "cs": "PHP_CS_FIXER_IGNORE_ENV=1 php-cs-fixer fix -v --diff --dry-run",
+        "cs-fix": "PHP_CS_FIXER_IGNORE_ENV=1 php-cs-fixer fix -v --diff",
+        "test": "@php -dzend.assertions=1 -dassert.exception=1 ./vendor/bin/phpunit --coverage-text"
+    }
+}
