@@ -15,12 +15,12 @@ require __DIR__ . '/../vendor/autoload.php';
 Loop::run(static function () use ($argv) {
     try {
         // If you need authentication, you can set a custom header (using Basic auth here)
-        // $connector = new Http1Tunnel(new SocketAddress('127.0.0.1', 5512), [
+        // $connector = new Http1TunnelConnector(new SocketAddress('127.0.0.1', 5512), [
         //     'proxy-authorization' => 'Basic ' . \base64_encode('user:pass'),
         // ]);
 
-        // If you have a proxy accepting HTTPS connections, you need to use Https1Tunnel instead:
-        // $connector = new Https1Tunnel(new SocketAddress('proxy.example.com', 5512));
+        // If you have a proxy accepting HTTPS connections, you need to use Https1TunnelConnector instead:
+        // $connector = new Https1TunnelConnector(new SocketAddress('proxy.example.com', 5512));
         $connector = new Http1TunnelConnector(new SocketAddress('127.0.0.1', 5512));
 
         $client = (new HttpClientBuilder)
