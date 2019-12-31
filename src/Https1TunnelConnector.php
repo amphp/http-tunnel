@@ -6,6 +6,7 @@ use Amp\CancellationToken;
 use Amp\Http\Client\Internal\ForbidCloning;
 use Amp\Http\Client\Internal\ForbidSerialization;
 use Amp\Http\Tunnel\Internal\TunnelSocket;
+use Amp\NullCancellationToken;
 use Amp\Promise;
 use Amp\Socket\ClientTlsContext;
 use Amp\Socket\ConnectContext;
@@ -51,7 +52,7 @@ final class Https1TunnelConnector implements Connector
 
             yield $remoteSocket->setupTls($token);
 
-            $remoteSocket = yield Http1TunnelConnector::tunnel($remoteSocket, $uri, $this->customHeaders);
+            $remoteSocket = yield Http1TunnelConnector::tunnel($remoteSocket, $uri, $this->customHeaders, $token ?? new NullCancellationToken);
 
             /** @var EncryptableSocket $serverSocket */
             /** @var EncryptableSocket $clientSocket */

@@ -24,9 +24,13 @@ final class Http1TunnelConnector implements Connector
     use ForbidCloning;
     use ForbidSerialization;
 
-    public static function tunnel(EncryptableSocket $socket, string $target, array $customHeaders): Promise
-    {
-        return call(static function () use ($socket, $target, $customHeaders) {
+    public static function tunnel(
+        EncryptableSocket $socket,
+        string $target,
+        array $customHeaders,
+        CancellationToken $cancellationToken
+    ): Promise {
+        return call(static function () use ($socket, $target, $customHeaders, $cancellationToken) {
             $request = new Request('http://' . \str_replace('tcp://', '', $target), 'CONNECT');
             $request->setHeaders($customHeaders);
             $request->setUpgradeHandler(static function (EncryptableSocket $socket) use (&$upgradedSocket) {
@@ -39,7 +43,7 @@ final class Http1TunnelConnector implements Connector
             $stream = yield $connection->getStream($request);
 
             /** @var Response $response */
-            $response = yield $stream->request($request, new NullCancellationToken);
+            $response = yield $stream->request($request, $cancellationToken);
 
             if ($response->getStatus() !== 200) {
                 throw new ConnectException('Failed to connect to proxy: Received a bad status code (' . $response->getStatus() . ')');
@@ -72,7 +76,7 @@ final class Http1TunnelConnector implements Connector
 
             $socket = yield $connector->connect($this->proxyUri, $context, $token);
 
-            return self::tunnel($socket, $uri, $this->customHeaders);
+            return self::tunnel($socket, $uri, $this->customHeaders, $token ?? new NullCancellationToken);
         });
     }
 }
