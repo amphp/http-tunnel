@@ -21,7 +21,7 @@
         "php": ">=7.2",
         "amphp/amp": "^2.4",
         "amphp/byte-stream": "^1.7",
-        "amphp/http-client": "dev-master as 4.0",
+        "amphp/http-client": "^4",
         "amphp/socket": "^1"
     },
     "require-dev": {
