@@ -1,5 +1,6 @@
 <?php
 
+use Amp\Http\Client\Connection\DefaultConnectionFactory;
 use Amp\Http\Client\Connection\UnlimitedConnectionPool;
 use Amp\Http\Client\HttpClientBuilder;
 use Amp\Http\Client\HttpException;
@@ -24,7 +25,7 @@ Loop::run(static function () use ($argv) {
         $connector = new Http1TunnelConnector(new SocketAddress('127.0.0.1', 5512));
 
         $client = (new HttpClientBuilder)
-            ->usingPool(new UnlimitedConnectionPool($connector))
+            ->usingPool(new UnlimitedConnectionPool(new DefaultConnectionFactory($connector)))
             ->build();
 
         $request = new Request('http://amphp.org/');
@@ -41,7 +42,6 @@ Loop::run(static function () use ($argv) {
             \implode('+', $request->getProtocolVersions())
         );
 
-        /** @noinspection PhpUnhandledExceptionInspection */
         print Rfc7230::formatHeaders($request->getHeaders()) . "\r\n\r\n";
 
         \printf(
@@ -51,7 +51,6 @@ Loop::run(static function () use ($argv) {
             $response->getReason()
         );
 
-        /** @noinspection PhpUnhandledExceptionInspection */
         print Rfc7230::formatHeaders($response->getHeaders()) . "\r\n\r\n";
 
         $body = yield $response->getBody()->buffer();

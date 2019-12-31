@@ -2,6 +2,7 @@
 
 namespace Amp\Http\Tunnel;
 
+use Amp\Http\Client\Connection\DefaultConnectionFactory;
 use Amp\Http\Client\Connection\UnlimitedConnectionPool;
 use Amp\Http\Client\HttpClientBuilder;
 use Amp\Http\Client\Request;
@@ -22,7 +23,7 @@ class Http1TunnelConnectorTest extends AsyncTestCase
         $connector = new Http1TunnelConnector(SocketAddress::fromSocketName($address));
 
         $client = (new HttpClientBuilder)
-            ->usingPool(new UnlimitedConnectionPool($connector))
+            ->usingPool(new UnlimitedConnectionPool(new DefaultConnectionFactory($connector)))
             ->build();
 
         $request = new Request('https://httpbin.org/headers');
