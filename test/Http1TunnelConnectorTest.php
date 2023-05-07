@@ -6,34 +6,31 @@ use Amp\Http\Client\Connection\DefaultConnectionFactory;
 use Amp\Http\Client\Connection\UnlimitedConnectionPool;
 use Amp\Http\Client\HttpClientBuilder;
 use Amp\Http\Client\Request;
-use Amp\Http\Client\Response;
 use Amp\PHPUnit\AsyncTestCase;
-use Amp\ReactAdapter\ReactAdapter;
-use Amp\Socket\SocketAddress;
+use Amp\Socket\InternetAddress;
 use LeProxy\LeProxy\LeProxyServer;
+use React\EventLoop\Loop;
 
 class Http1TunnelConnectorTest extends AsyncTestCase
 {
-    public function test(): \Generator
+    public function test(): void
     {
-        $proxy = new LeProxyServer(ReactAdapter::get());
+        $proxy = new LeProxyServer(Loop::get());
         $socket = $proxy->listen('127.0.0.1:0', false);
 
-        $address = \str_replace('tcp://', '', $socket->getAddress());
-        $connector = new Http1TunnelConnector(SocketAddress::fromSocketName($address));
+        $socketConnector = new Http1TunnelConnector(InternetAddress::fromString(\str_replace('tcp://', '', $socket->getAddress())));
 
         $client = (new HttpClientBuilder)
-            ->usingPool(new UnlimitedConnectionPool(new DefaultConnectionFactory($connector)))
+            ->usingPool(new UnlimitedConnectionPool(new DefaultConnectionFactory($socketConnector)))
             ->build();
 
         $request = new Request('https://httpbin.org/headers');
         $request->setHeader('connection', 'close');
 
-        /** @var Response $response */
-        $response = yield $client->request($request);
+        $response = $client->request($request);
 
         $this->assertSame(200, $response->getStatus());
-        $this->assertJson(yield $response->getBody()->buffer());
+        $this->assertJson($response->getBody()->buffer());
 
         $socket->close();
     }

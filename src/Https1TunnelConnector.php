@@ -2,106 +2,91 @@
 
 namespace Amp\Http\Tunnel;
 
-use Amp\CancellationToken;
-use Amp\Http\Client\Internal\ForbidCloning;
-use Amp\Http\Client\Internal\ForbidSerialization;
+use Amp\Cancellation;
+use Amp\ForbidCloning;
+use Amp\ForbidSerialization;
 use Amp\Http\Tunnel\Internal\TunnelSocket;
-use Amp\NullCancellationToken;
-use Amp\Promise;
+use Amp\NullCancellation;
 use Amp\Socket\ClientTlsContext;
 use Amp\Socket\ConnectContext;
-use Amp\Socket\Connector;
-use Amp\Socket\EncryptableSocket;
-use Amp\Socket\Server;
+use Amp\Socket\Socket;
 use Amp\Socket\SocketAddress;
-use function Amp\asyncCall;
+use Amp\Socket\SocketConnector;
+use function Amp\async;
 use function Amp\ByteStream\pipe;
-use function Amp\call;
+use function Amp\Future\awaitAll;
 use function Amp\Socket\connect;
-use function Amp\Socket\connector;
+use function Amp\Socket\listen;
+use function Amp\Socket\socketConnector;
 
-final class Https1TunnelConnector implements Connector
+final class Https1TunnelConnector implements SocketConnector
 {
     use ForbidCloning;
     use ForbidSerialization;
 
-    /** @var string */
-    private $proxyUri;
-    /** @var ClientTlsContext */
-    private $proxyTls;
-    /** @var array[] */
-    private $customHeaders;
-    /** @var Connector|null */
-    private $connector;
+    private string $proxyAddress;
+    private ClientTlsContext $proxyTlsContext;
+    private array $customHeaders;
+    private ?SocketConnector $socketConnector;
 
-    public function __construct(SocketAddress $proxyAddress, ?ClientTlsContext $proxyTls = null, array $customHeaders = [], ?Connector $connector = null)
+    public function __construct(string $proxyAddress, ClientTlsContext $proxyTls, array $customHeaders = [], ?SocketConnector $socketConnector = null)
     {
-        $this->proxyUri = (string) $proxyAddress;
-        $this->proxyTls = $proxyTls ?? new ClientTlsContext($proxyAddress->getHost());
+        $this->proxyAddress = $proxyAddress;
+        $this->proxyTlsContext = $proxyTls;
         $this->customHeaders = $customHeaders;
-        $this->connector = $connector;
+        $this->socketConnector = $socketConnector;
     }
 
-    public function connect(string $uri, ?ConnectContext $context = null, ?CancellationToken $token = null): Promise
+    public function connect(SocketAddress|string $uri, ?ConnectContext $context = null, ?Cancellation $cancellation = null): Socket
     {
-        return call(function () use ($uri, $context, $token) {
-            $connector = $this->connector ?? connector();
+        $socketConnector = $this->socketConnector ?? socketConnector();
 
-            /** @var EncryptableSocket $remoteSocket */
-            $remoteSocket = yield $connector->connect($this->proxyUri, $context->withTlsContext($this->proxyTls), $token);
+        $remoteSocket = $socketConnector->connect($this->proxyAddress, $context->withTlsContext($this->proxyTlsContext), $cancellation);
+        $remoteSocket->setupTls($cancellation);
 
-            yield $remoteSocket->setupTls($token);
+        $remoteSocket = Http1TunnelConnector::tunnel($remoteSocket, $uri, $this->customHeaders, $cancellation ?? new NullCancellation());
 
-            $remoteSocket = yield Http1TunnelConnector::tunnel($remoteSocket, $uri, $this->customHeaders, $token ?? new NullCancellationToken);
+        /** @var Socket $serverSocket */
+        /** @var Socket $clientSocket */
+        [$serverSocket, $clientSocket] = $this->createPair((new ConnectContext)->withTlsContext($context->getTlsContext()));
 
-            /** @var EncryptableSocket $serverSocket */
-            /** @var EncryptableSocket $clientSocket */
-            [$serverSocket, $clientSocket] = yield $this->createPair((new ConnectContext)->withTlsContext($context->getTlsContext()));
-
-            asyncCall(static function () use ($serverSocket, $remoteSocket) {
-                try {
-                    yield [
-                        pipe($serverSocket, $remoteSocket),
-                        pipe($remoteSocket, $serverSocket),
-                    ];
-                } catch (\Throwable $e) {
-                    // ignore
-                } finally {
-                    $serverSocket->close();
-                    $remoteSocket->close();
-                }
-            });
-
-            return new TunnelSocket($clientSocket, $remoteSocket);
-        });
-    }
-
-    private function createPair(ConnectContext $connectContext): Promise
-    {
-        return call(static function () use ($connectContext) {
-            retry:
-
-            $server = Server::listen('127.0.0.1:0');
-            $address = (string) $server->getAddress();
-
-            $connectPromise = connect($address, $connectContext);
-
+        async(static function () use ($serverSocket, $remoteSocket) {
             try {
-                /** @var EncryptableSocket $serverSocket */
-                /** @var EncryptableSocket $clientSocket */
-                [$serverSocket, $clientSocket] = yield [
-                    $server->accept(),
-                    $connectPromise,
+                $futures = [
+                    async(fn () => pipe($serverSocket, $remoteSocket)),
+                    async(fn () => pipe($remoteSocket, $serverSocket)),
                 ];
+
+                awaitAll($futures);
+            } catch (\Throwable) {
+                // ignore
             } finally {
-                $server->close();
+                $serverSocket->close();
+                $remoteSocket->close();
             }
-
-            if ((string) $serverSocket->getRemoteAddress() !== (string) $clientSocket->getLocalAddress()) {
-                goto retry; // someone else connected faster...
-            }
-
-            return [$serverSocket, $clientSocket];
         });
+
+        return new TunnelSocket($clientSocket, $remoteSocket);
+    }
+
+    private function createPair(ConnectContext $connectContext): array
+    {
+        retry:
+
+        $server = listen('127.0.0.1:0');
+        $clientSocketFuture = async(fn () => connect($server->getAddress(), $connectContext));
+
+        try {
+            $serverSocket = $server->accept();
+            $clientSocket = $clientSocketFuture->await();
+        } finally {
+            $server->close();
+        }
+
+        if ((string)$serverSocket->getRemoteAddress() !== (string)$clientSocket->getLocalAddress()) {
+            goto retry; // someone else connected faster...
+        }
+
+        return [$serverSocket, $clientSocket];
     }
 }

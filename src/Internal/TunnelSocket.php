@@ -2,42 +2,40 @@
 
 namespace Amp\Http\Tunnel\Internal;
 
-use Amp\CancellationToken;
-use Amp\Http\Client\Internal\ForbidCloning;
-use Amp\Http\Client\Internal\ForbidSerialization;
-use Amp\Promise;
-use Amp\Socket\EncryptableSocket;
+use Amp\Cancellation;
+use Amp\ForbidCloning;
+use Amp\ForbidSerialization;
+use Amp\Socket\Socket;
 use Amp\Socket\SocketAddress;
 use Amp\Socket\TlsInfo;
+use Amp\Socket\TlsState;
 
 /** @internal */
-final class TunnelSocket implements EncryptableSocket
+final class TunnelSocket implements Socket
 {
     use ForbidCloning;
     use ForbidSerialization;
 
-    /** @var EncryptableSocket */
-    private $localSocket;
-    /** @var EncryptableSocket */
-    private $remoteSocket;
+    private Socket $localSocket;
+    private Socket $remoteSocket;
 
-    public function __construct(EncryptableSocket $local, EncryptableSocket $remote)
+    public function __construct(Socket $local, Socket $remote)
     {
         $this->localSocket = $local;
         $this->remoteSocket = $remote;
     }
 
-    public function setupTls(?CancellationToken $cancellationToken = null): Promise
+    public function setupTls(?Cancellation $cancellation = null): void
     {
-        return $this->localSocket->setupTls($cancellationToken);
+        $this->localSocket->setupTls($cancellation);
     }
 
-    public function shutdownTls(?CancellationToken $cancellationToken = null): Promise
+    public function shutdownTls(?Cancellation $cancellation = null): void
     {
-        return $this->localSocket->shutdownTls($cancellationToken);
+        $this->localSocket->shutdownTls($cancellation);
     }
 
-    public function getTlsState(): int
+    public function getTlsState(): TlsState
     {
         return $this->localSocket->getTlsState();
     }
@@ -47,19 +45,19 @@ final class TunnelSocket implements EncryptableSocket
         return $this->localSocket->getTlsInfo();
     }
 
-    public function read(): Promise
+    public function read(?Cancellation $cancellation = null, ?int $limit = null): ?string
     {
-        return $this->localSocket->read();
+        return $this->localSocket->read($cancellation);
     }
 
-    public function write(string $data): Promise
+    public function write(string $bytes): void
     {
-        return $this->localSocket->write($data);
+        $this->localSocket->write($bytes);
     }
 
-    public function end(string $finalData = ''): Promise
+    public function end(): void
     {
-        return $this->localSocket->end($finalData);
+        $this->localSocket->end();
     }
 
     public function reference(): void
@@ -93,5 +91,25 @@ final class TunnelSocket implements EncryptableSocket
     public function getRemoteAddress(): SocketAddress
     {
         return $this->remoteSocket->getRemoteAddress();
+    }
+
+    public function onClose(\Closure $onClose): void
+    {
+        $this->localSocket->onClose($onClose);
+    }
+
+    public function isReadable(): bool
+    {
+        return $this->localSocket->isReadable();
+    }
+
+    public function isTlsConfigurationAvailable(): bool
+    {
+        return $this->localSocket->isTlsConfigurationAvailable();
+    }
+
+    public function isWritable(): bool
+    {
+        return $this->localSocket->isWritable();
     }
 }

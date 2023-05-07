@@ -2,81 +2,69 @@
 
 namespace Amp\Http\Tunnel;
 
-use Amp\CancellationToken;
+use Amp\Cancellation;
+use Amp\ForbidCloning;
+use Amp\ForbidSerialization;
 use Amp\Http\Client\Connection\Http1Connection;
 use Amp\Http\Client\Connection\Stream;
-use Amp\Http\Client\Internal\ForbidCloning;
-use Amp\Http\Client\Internal\ForbidSerialization;
 use Amp\Http\Client\Request;
-use Amp\Http\Client\Response;
-use Amp\NullCancellationToken;
-use Amp\Promise;
+use Amp\NullCancellation;
 use Amp\Socket\ConnectContext;
 use Amp\Socket\ConnectException;
-use Amp\Socket\Connector;
-use Amp\Socket\EncryptableSocket;
+use Amp\Socket\Socket;
 use Amp\Socket\SocketAddress;
-use function Amp\call;
-use function Amp\Socket\connector;
+use Amp\Socket\SocketConnector;
+use function Amp\Socket\socketConnector;
 
-final class Http1TunnelConnector implements Connector
+final class Http1TunnelConnector implements SocketConnector
 {
     use ForbidCloning;
     use ForbidSerialization;
 
     public static function tunnel(
-        EncryptableSocket $socket,
+        Socket $socket,
         string $target,
         array $customHeaders,
-        CancellationToken $cancellationToken
-    ): Promise {
-        return call(static function () use ($socket, $target, $customHeaders, $cancellationToken) {
-            $request = new Request('http://' . \str_replace('tcp://', '', $target), 'CONNECT');
-            $request->setHeaders($customHeaders);
-            $request->setUpgradeHandler(static function (EncryptableSocket $socket) use (&$upgradedSocket) {
-                $upgradedSocket = $socket;
-            });
-
-            $connection = new Http1Connection($socket, 1000);
-
-            /** @var Stream $stream */
-            $stream = yield $connection->getStream($request);
-
-            /** @var Response $response */
-            $response = yield $stream->request($request, $cancellationToken);
-
-            if ($response->getStatus() !== 200) {
-                throw new ConnectException('Failed to connect to proxy: Received a bad status code (' . $response->getStatus() . ')');
-            }
-
-            \assert($upgradedSocket !== null);
-
-            return $upgradedSocket;
+        Cancellation $cancellation
+    ): Socket {
+        $request = new Request('http://' . \str_replace('tcp://', '', $target), 'CONNECT');
+        $request->setHeaders($customHeaders);
+        $request->setUpgradeHandler(static function (Socket $socket) use (&$upgradedSocket) {
+            $upgradedSocket = $socket;
         });
+
+        $connection = new Http1Connection($socket, 1000);
+
+        /** @var Stream $stream */
+        $stream = $connection->getStream($request);
+        $response = $stream->request($request, $cancellation);
+
+        if ($response->getStatus() !== 200) {
+            throw new ConnectException('Failed to connect to proxy: Received a bad status code (' . $response->getStatus() . ')');
+        }
+
+        \assert($upgradedSocket !== null);
+
+        return $upgradedSocket;
     }
 
-    /** @var string */
-    private $proxyUri;
-    /** @var array */
-    private $customHeaders;
-    /** @var Connector|null */
-    private $connector;
+    private string $proxyAddress;
+    private array $customHeaders;
+    private ?SocketConnector $socketConnector;
 
-    public function __construct(SocketAddress $proxyAddress, array $customHeaders = [], ?Connector $connector = null)
+    public function __construct(string $proxyAddress, array $customHeaders = [], ?SocketConnector $socketConnector = null)
     {
-        $this->proxyUri = (string) $proxyAddress;
+        $this->proxyAddress = $proxyAddress;
         $this->customHeaders = $customHeaders;
-        $this->connector = $connector;
+        $this->socketConnector = $socketConnector;
     }
 
-    public function connect(string $uri, ?ConnectContext $context = null, ?CancellationToken $token = null): Promise
+    public function connect(SocketAddress|string $uri, ?ConnectContext $context = null, ?Cancellation $cancellation = null): Socket
     {
-        return call(function () use ($uri, $context, $token) {
-            $connector = $this->connector ?? connector();
+        $connector = $this->socketConnector ?? socketConnector();
 
-            $socket = yield $connector->connect($this->proxyUri, $context, $token);
+        $socket = $connector->connect($this->proxyAddress, $context, $cancellation);
 
-            return self::tunnel($socket, $uri, $this->customHeaders, $token ?? new NullCancellationToken);
-        });
+        return self::tunnel($socket, $uri, $this->customHeaders, $cancellation ?? new NullCancellation());
     }
 }
