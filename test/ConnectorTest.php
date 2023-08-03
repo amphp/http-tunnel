@@ -1,4 +1,4 @@
-<?php
+<?php declare(strict_types=1);
 
 namespace Amp\Http\Tunnel;
 
@@ -41,7 +41,8 @@ class ConnectorTest extends AsyncTestCase
         $socket->close();
     }
 
-    public static function provideProxy(): array {
+    public static function provideProxy(): array
+    {
         return [
             [Http1TunnelConnector::class],
             [SocksTunnelConnector::class],
