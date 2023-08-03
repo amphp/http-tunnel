@@ -10,7 +10,7 @@
       <code>TunnelSocket</code>
     </InvalidTraversableImplementation>
   </file>
-  <file src="src/SocksTunnelConnector.php">
+  <file src="src/Socks5TunnelConnector.php">
     <InvalidReturnType>
       <code>Socket</code>
     </InvalidReturnType>

@@ -2,7 +2,7 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)
 
-This package provides an HTTP `CONNECT` tunnel for PHP based on [Amp](https://github.com/amphp/amp).
+This package provides an HTTP `CONNECT` tunnel and a socks5 tunnel for PHP based on [Amp](https://github.com/amphp/amp).
 
 ## Installation
 
