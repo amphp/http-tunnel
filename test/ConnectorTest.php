@@ -24,7 +24,7 @@ class ConnectorTest extends AsyncTestCase
         $proxy = new LeProxyServer(Loop::get());
         $socket = $proxy->listen('127.0.0.1:0', false);
 
-        $socketConnector = new $class(InternetAddress::fromString(\str_replace('tcp://', '', $socket->getAddress())));
+        $socketConnector = new $class((string) InternetAddress::fromString(\str_replace('tcp://', '', $socket->getAddress())));
 
         $client = (new HttpClientBuilder)
             ->usingPool(new UnlimitedConnectionPool(new DefaultConnectionFactory($socketConnector)))
