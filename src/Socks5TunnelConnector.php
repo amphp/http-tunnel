@@ -34,12 +34,18 @@ final class Socks5TunnelConnector implements SocketConnector
             throw new AssertionError("Both or neither username and password must be provided!");
         }
         $uri = Uri::createFromString($target);
-        $read = function (int $length) use ($socket, $cancellation): string {
+        $buffer = '';
+        $read = function (int $length) use ($socket, $cancellation, &$buffer): string {
             \assert($length > 0);
-            $res = $socket->read($cancellation, $length);
-            if ($res === null || \strlen($res) !== $length) {
-                throw new AssertionError("Did not read enough data!");
-            }
+            do {
+                $res = $socket->read($cancellation, $length - strlen($buffer));
+                if ($res === null) {
+                    throw new AssertionError("The socket was closed!");
+                }
+                $buffer .= $res;
+            } while (strlen($buffer) !== $length);
+            $res = $buffer;
+            $buffer = '';
             return $res;
         };
 
