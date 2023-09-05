@@ -84,8 +84,8 @@ final class Socks5TunnelConnector implements SocketConnector
             throw new AssertionError("Host is null!");
         }
         $payload = \pack('C3', 0x5, 0x1, 0x0);
-        if (\filter_var($host, FILTER_VALIDATE_IP)) {
-            $ip = \inet_pton($host);
+        $ip = \inet_pton($host);
+        if ($ip !== false) {
             $payload .= \chr(\strlen($ip) === 4 ? 0x1 : 0x4).$ip;
         } else {
             $payload .= \chr(0x3).\chr(\strlen($host)).$host;
