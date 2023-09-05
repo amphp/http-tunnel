@@ -15,6 +15,7 @@ use Amp\Socket\SocketConnector;
 use function Amp\async;
 use function Amp\ByteStream\pipe;
 use function Amp\Future\awaitAll;
+use function Amp\now;
 use function Amp\Socket\connect;
 use function Amp\Socket\listen;
 use function Amp\Socket\socketConnector;
@@ -43,10 +44,17 @@ final class Https1TunnelConnector implements SocketConnector
         $socketConnector = $this->socketConnector ?? socketConnector();
         $context ??= new ConnectContext;
 
+        $start = now();
+
         $remoteSocket = $socketConnector->connect($this->proxyAddress, $context->withTlsContext($this->proxyTlsContext), $cancellation);
+
+        $tlsStart = now();
+
         $remoteSocket->setupTls($cancellation);
 
-        $remoteSocket = Http1TunnelConnector::tunnel($remoteSocket, (string) $uri, $this->customHeaders, $cancellation ?? new NullCancellation());
+        $end = now();
+
+        $remoteSocket = Http1TunnelConnector::tunnel($remoteSocket, $end - $start, $end - $tlsStart, (string) $uri, $this->customHeaders, $cancellation ?? new NullCancellation());
 
         [$serverSocket, $clientSocket] = $this->createPair((new ConnectContext)->withTlsContext($context->getTlsContext()));
 

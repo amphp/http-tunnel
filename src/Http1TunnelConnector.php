@@ -14,6 +14,8 @@ use Amp\Socket\ConnectException;
 use Amp\Socket\Socket;
 use Amp\Socket\SocketAddress;
 use Amp\Socket\SocketConnector;
+use function Amp\Http\Client\processRequest;
+use function Amp\now;
 use function Amp\Socket\socketConnector;
 
 /** @api */
@@ -24,6 +26,8 @@ final class Http1TunnelConnector implements SocketConnector
 
     public static function tunnel(
         Socket $socket,
+        float $connectDuration,
+        ?float $tlsHandshakeDuration,
         string $target,
         array $customHeaders,
         Cancellation $cancellation
@@ -35,11 +39,13 @@ final class Http1TunnelConnector implements SocketConnector
             $upgradedSocket = $socket;
         });
 
-        $connection = new Http1Connection($socket, 1000);
+        $connection = new Http1Connection($socket, $connectDuration, $tlsHandshakeDuration, 1);
 
-        /** @var Stream $stream */
-        $stream = $connection->getStream($request);
-        $response = $stream->request($request, $cancellation);
+        $response = processRequest($request, [], function (Request $request) use ($connection, $cancellation) {
+            /** @var Stream $stream */
+            $stream = $connection->getStream($request);
+            return $stream->request($request, $cancellation);
+        });
 
         if ($response->getStatus() !== 200) {
             throw new ConnectException('Failed to connect to proxy: Received a bad status code (' . $response->getStatus() . ')');
@@ -61,8 +67,10 @@ final class Http1TunnelConnector implements SocketConnector
     {
         $connector = $this->socketConnector ?? socketConnector();
 
+        $start = now();
+
         $socket = $connector->connect($this->proxyAddress, $context, $cancellation);
 
-        return self::tunnel($socket, (string) $uri, $this->customHeaders, $cancellation ?? new NullCancellation());
+        return self::tunnel($socket, now() - $start, null, (string) $uri, $this->customHeaders, $cancellation ?? new NullCancellation());
     }
 }
