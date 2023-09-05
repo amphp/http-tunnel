@@ -53,7 +53,7 @@ final class Socks5TunnelConnector implements SocketConnector
         if (isset($username) && isset($password)) {
             $methods .= \chr(2);
         }
-        $socket->write(\chr(5).\chr(\strlen($methods)).$methods);
+        $socket->write(\chr(5) . \chr(\strlen($methods)) . $methods);
         $version = \ord($read(1));
         if ($version !== 5) {
             throw new RuntimeException("Wrong SOCKS5 version: {$version}");
@@ -62,10 +62,10 @@ final class Socks5TunnelConnector implements SocketConnector
         if ($method === 2) {
             \assert($username !== null && $password !== null);
             $socket->write(
-                \chr(1).
-                \chr(\strlen($username)).
-                $username.
-                \chr(\strlen($password)).
+                \chr(1) .
+                \chr(\strlen($username)) .
+                $username .
+                \chr(\strlen($password)) .
                 $password
             );
             $version = \ord($read(1));
@@ -86,9 +86,9 @@ final class Socks5TunnelConnector implements SocketConnector
         $payload = \pack('C3', 0x5, 0x1, 0x0);
         $ip = \inet_pton($host);
         if ($ip !== false) {
-            $payload .= \chr(\strlen($ip) === 4 ? 0x1 : 0x4).$ip;
+            $payload .= \chr(\strlen($ip) === 4 ? 0x1 : 0x4) . $ip;
         } else {
-            $payload .= \chr(0x3).\chr(\strlen($host)).$host;
+            $payload .= \chr(0x3) . \chr(\strlen($host)) . $host;
         }
         $payload .= \pack('n', $uri->getPort());
         $socket->write($payload);
@@ -109,7 +109,7 @@ final class Socks5TunnelConnector implements SocketConnector
         $read(match (\ord($read(1))) {
             0x1 => 6,
             0x4 => 18,
-            0x3 => \ord($read(1))+2
+            0x3 => \ord($read(1)) + 2
         });
 
         return $socket;
