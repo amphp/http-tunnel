@@ -38,12 +38,12 @@ final class Socks5TunnelConnector implements SocketConnector
         $read = function (int $length) use ($socket, $cancellation, &$buffer): string {
             \assert($length > 0);
             do {
-                $res = $socket->read($cancellation, $length - strlen($buffer));
+                $res = $socket->read($cancellation, $length - \strlen($buffer));
                 if ($res === null) {
                     throw new AssertionError("The socket was closed!");
                 }
                 $buffer .= $res;
-            } while (strlen($buffer) !== $length);
+            } while (\strlen($buffer) !== $length);
             $res = $buffer;
             $buffer = '';
             return $res;

@@ -1,4 +1,4 @@
-<?php
+<?php declare(strict_types=1);
 
 use Amp\Http\Client\Connection\DefaultConnectionFactory;
 use Amp\Http\Client\Connection\UnlimitedConnectionPool;
@@ -30,16 +30,16 @@ try {
 
     $request = $response->getRequest();
 
-    \printf(
+    printf(
         "%s %s HTTP/%s\r\n",
         $request->getMethod(),
         $request->getUri(),
-        \implode('+', $request->getProtocolVersions())
+        implode('+', $request->getProtocolVersions())
     );
 
     print Rfc7230::formatHeaders($request->getHeaders()) . "\r\n\r\n";
 
-    \printf(
+    printf(
         "HTTP/%s %d %s\r\n",
         $response->getProtocolVersion(),
         $response->getStatus(),
@@ -49,12 +49,12 @@ try {
     print Rfc7230::formatHeaders($response->getHeaders()) . "\r\n\r\n";
 
     $body = $response->getBody()->buffer();
-    $bodyLength = \strlen($body);
+    $bodyLength = strlen($body);
 
     if ($bodyLength < 250) {
         print $body . "\r\n";
     } else {
-        print \substr($body, 0, 250) . "\r\n\r\n";
+        print substr($body, 0, 250) . "\r\n\r\n";
         print($bodyLength - 250) . " more bytes\r\n";
     }
 } catch (HttpException $error) {
