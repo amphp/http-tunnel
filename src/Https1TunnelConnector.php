@@ -1,4 +1,4 @@
-<?php
+<?php declare(strict_types=1);
 
 namespace Amp\Http\Tunnel;
 
@@ -19,6 +19,7 @@ use function Amp\Socket\connect;
 use function Amp\Socket\listen;
 use function Amp\Socket\socketConnector;
 
+/** @api */
 final class Https1TunnelConnector implements SocketConnector
 {
     use ForbidCloning;
@@ -40,14 +41,13 @@ final class Https1TunnelConnector implements SocketConnector
     public function connect(SocketAddress|string $uri, ?ConnectContext $context = null, ?Cancellation $cancellation = null): Socket
     {
         $socketConnector = $this->socketConnector ?? socketConnector();
+        $context ??= new ConnectContext;
 
         $remoteSocket = $socketConnector->connect($this->proxyAddress, $context->withTlsContext($this->proxyTlsContext), $cancellation);
         $remoteSocket->setupTls($cancellation);
 
-        $remoteSocket = Http1TunnelConnector::tunnel($remoteSocket, $uri, $this->customHeaders, $cancellation ?? new NullCancellation());
+        $remoteSocket = Http1TunnelConnector::tunnel($remoteSocket, (string) $uri, $this->customHeaders, $cancellation ?? new NullCancellation());
 
-        /** @var Socket $serverSocket */
-        /** @var Socket $clientSocket */
         [$serverSocket, $clientSocket] = $this->createPair((new ConnectContext)->withTlsContext($context->getTlsContext()));
 
         async(static function () use ($serverSocket, $remoteSocket) {
@@ -69,23 +69,20 @@ final class Https1TunnelConnector implements SocketConnector
         return new TunnelSocket($clientSocket, $remoteSocket);
     }
 
+    /** @return list{Socket, Socket} */
     private function createPair(ConnectContext $connectContext): array
     {
-        retry:
+        do {
+            $server = listen('127.0.0.1:0');
+            $clientSocketFuture = async(fn () => connect($server->getAddress(), $connectContext));
 
-        $server = listen('127.0.0.1:0');
-        $clientSocketFuture = async(fn () => connect($server->getAddress(), $connectContext));
-
-        try {
-            $serverSocket = $server->accept();
-            $clientSocket = $clientSocketFuture->await();
-        } finally {
-            $server->close();
-        }
-
-        if ((string)$serverSocket->getRemoteAddress() !== (string)$clientSocket->getLocalAddress()) {
-            goto retry; // someone else connected faster...
-        }
+            try {
+                $serverSocket = $server->accept();
+                $clientSocket = $clientSocketFuture->await();
+            } finally {
+                $server->close();
+            }
+        } while (!$serverSocket || (string) $serverSocket->getRemoteAddress() !== (string) $clientSocket->getLocalAddress());
 
         return [$serverSocket, $clientSocket];
     }

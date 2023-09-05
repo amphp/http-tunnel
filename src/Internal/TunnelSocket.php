@@ -1,7 +1,8 @@
-<?php
+<?php declare(strict_types=1);
 
 namespace Amp\Http\Tunnel\Internal;
 
+use Amp\ByteStream\ResourceStream;
 use Amp\Cancellation;
 use Amp\ForbidCloning;
 use Amp\ForbidSerialization;
@@ -60,14 +61,20 @@ final class TunnelSocket implements Socket
         $this->localSocket->end();
     }
 
+    /** @api */
     public function reference(): void
     {
+        \assert($this->localSocket instanceof ResourceStream);
+        \assert($this->remoteSocket instanceof ResourceStream);
         $this->localSocket->reference();
         $this->remoteSocket->reference();
     }
 
+    /** @api */
     public function unreference(): void
     {
+        \assert($this->localSocket instanceof ResourceStream);
+        \assert($this->remoteSocket instanceof ResourceStream);
         $this->localSocket->unreference();
         $this->remoteSocket->unreference();
     }

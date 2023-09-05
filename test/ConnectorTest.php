@@ -1,4 +1,4 @@
-<?php
+<?php declare(strict_types=1);
 
 namespace Amp\Http\Tunnel;
 
@@ -8,30 +8,44 @@ use Amp\Http\Client\HttpClientBuilder;
 use Amp\Http\Client\Request;
 use Amp\PHPUnit\AsyncTestCase;
 use Amp\Socket\InternetAddress;
+use Amp\Socket\SocketConnector;
 use LeProxy\LeProxy\LeProxyServer;
 use React\EventLoop\Loop;
 
-class Http1TunnelConnectorTest extends AsyncTestCase
+class ConnectorTest extends AsyncTestCase
 {
-    public function test(): void
+    /**
+     * @dataProvider provideProxy
+     *
+     * @param class-string<SocketConnector> $class
+     */
+    public function test(string $class): void
     {
         $proxy = new LeProxyServer(Loop::get());
         $socket = $proxy->listen('127.0.0.1:0', false);
 
-        $socketConnector = new Http1TunnelConnector(InternetAddress::fromString(\str_replace('tcp://', '', $socket->getAddress())));
+        $socketConnector = new $class((string) InternetAddress::fromString(\str_replace('tcp://', '', $socket->getAddress())));
 
         $client = (new HttpClientBuilder)
             ->usingPool(new UnlimitedConnectionPool(new DefaultConnectionFactory($socketConnector)))
             ->build();
 
-        $request = new Request('https://httpbin.org/headers');
+        $request = new Request('https://example.com/');
         $request->setHeader('connection', 'close');
 
         $response = $client->request($request);
 
         $this->assertSame(200, $response->getStatus());
-        $this->assertJson($response->getBody()->buffer());
+        $this->assertStringContainsString('Example Domain', $response->getBody()->buffer());
 
         $socket->close();
+    }
+
+    public static function provideProxy(): array
+    {
+        return [
+            [Http1TunnelConnector::class],
+            [Socks5TunnelConnector::class],
+        ];
     }
 }
