@@ -22,7 +22,7 @@
         "amphp/amp": "^3",
         "amphp/byte-stream": "^2",
         "amphp/http-client": "^5",
-        "amphp/socket": "^2",
+        "amphp/socket": "^2.3",
         "league/uri": "^6 | ^7.2"
     },
     "require-dev": {

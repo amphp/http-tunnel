@@ -6,8 +6,7 @@ use Amp\Http\Client\HttpClientBuilder;
 use Amp\Http\Client\HttpException;
 use Amp\Http\Client\Request;
 use Amp\Http\Http1\Rfc7230;
-use Amp\Http\Tunnel\Http1TunnelConnector;
-use Amp\Http\Tunnel\Socks5TunnelConnector;
+use Amp\Socket\Socks5SocketConnector;
 
 require __DIR__ . '/../vendor/autoload.php';
 
@@ -19,7 +18,7 @@ try {
 
     // If you have a proxy accepting HTTPS connections, you need to use Https1TunnelConnector instead:
     // $connector = new Https1TunnelConnector(new SocketAddress('proxy.example.com', 5512));
-    $socketConnector = new Socks5TunnelConnector('127.0.0.1:5512');
+    $socketConnector = new Socks5SocketConnector('127.0.0.1:5512');
 
     $client = (new HttpClientBuilder)
         ->usingPool(new UnlimitedConnectionPool(new DefaultConnectionFactory($socketConnector)))

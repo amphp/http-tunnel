@@ -45,7 +45,6 @@ class ConnectorTest extends AsyncTestCase
     {
         return [
             [Http1TunnelConnector::class],
-            [Socks5TunnelConnector::class],
         ];
     }
 }
