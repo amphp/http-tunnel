@@ -11,7 +11,6 @@ use Amp\Socket\Socket;
 use Amp\Socket\SocketAddress;
 use Amp\Socket\SocketConnector;
 use Amp\Socket\SocketException;
-use AssertionError;
 use League\Uri\Uri;
 use function Amp\Socket\socketConnector;
 
@@ -171,7 +170,7 @@ final class Socks5TunnelConnector implements SocketConnector
         private readonly ?SocketConnector $socketConnector = null
     ) {
         if (($username === null) !== ($password === null)) {
-            throw new AssertionError("Both or neither username and password must be provided!");
+            throw new \Error("Both or neither username and password must be provided!");
         }
     }
 
