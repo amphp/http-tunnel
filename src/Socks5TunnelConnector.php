@@ -34,7 +34,7 @@ final class Socks5TunnelConnector implements SocketConnector
      * @throws StreamException
      * @see https://datatracker.ietf.org/doc/html/rfc1928#section-3
      */
-    public static function writeHello(?string $username, ?string $password, Socket $socket): void
+    private static function writeHello(?string $username, ?string $password, Socket $socket): void
     {
         $methods = \chr(0);
         if (isset($username) && isset($password)) {
@@ -49,7 +49,7 @@ final class Socks5TunnelConnector implements SocketConnector
      * @throws StreamException
      * @see https://datatracker.ietf.org/doc/html/rfc1928#section-4
      */
-    public static function writeConnectRequest(Uri $uri, Socket $socket): void
+    private static function writeConnectRequest(Uri $uri, Socket $socket): void
     {
         $host = $uri->getHost();
         if ($host === null) {
