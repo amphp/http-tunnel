@@ -164,7 +164,7 @@ final class Socks5TunnelConnector implements SocketConnector
     }
 
     public function __construct(
-        private readonly string $proxyAddress,
+        private readonly SocketAddress|string $proxyAddress,
         private readonly ?string $username = null,
         private readonly ?string $password = null,
         private readonly ?SocketConnector $socketConnector = null
