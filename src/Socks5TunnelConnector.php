@@ -2,6 +2,7 @@
 
 namespace Amp\Http\Tunnel;
 
+use Amp\ByteStream\StreamException;
 use Amp\Cancellation;
 use Amp\ForbidCloning;
 use Amp\ForbidSerialization;
@@ -9,16 +10,65 @@ use Amp\Socket\ConnectContext;
 use Amp\Socket\Socket;
 use Amp\Socket\SocketAddress;
 use Amp\Socket\SocketConnector;
+use Amp\Socket\SocketException;
 use AssertionError;
 use League\Uri\Uri;
-use RuntimeException;
-
 use function Amp\Socket\socketConnector;
 
 /** @api */
 final class Socks5TunnelConnector implements SocketConnector
 {
-    private const REPS = [0 => 'succeeded', 1 => 'general SOCKS server failure', 2 => 'connection not allowed by ruleset', 3 => 'Network unreachable', 4 => 'Host unreachable', 5 => 'Connection refused', 6 => 'TTL expired', 7 => 'Command not supported', 8 => 'Address type not supported'];
+    private const REPLIES = [
+        0 => 'succeeded',
+        1 => 'general SOCKS server failure',
+        2 => 'connection not allowed by ruleset',
+        3 => 'Network unreachable',
+        4 => 'Host unreachable',
+        5 => 'Connection refused',
+        6 => 'TTL expired',
+        7 => 'Command not supported',
+        8 => 'Address type not supported'
+    ];
+
+    /**
+     * @throws StreamException
+     * @see https://datatracker.ietf.org/doc/html/rfc1928#section-3
+     */
+    public static function writeHello(?string $username, ?string $password, Socket $socket): void
+    {
+        $methods = \chr(0);
+        if (isset($username) && isset($password)) {
+            $methods .= \chr(2);
+        }
+
+        $socket->write(\chr(5) . \chr(\strlen($methods)) . $methods);
+    }
+
+    /**
+     * @throws SocketException
+     * @throws StreamException
+     * @see https://datatracker.ietf.org/doc/html/rfc1928#section-4
+     */
+    public static function writeConnectRequest(Uri $uri, Socket $socket): void
+    {
+        $host = $uri->getHost();
+        if ($host === null) {
+            throw new SocketException("Host is null!");
+        }
+
+        $payload = \pack('C3', 0x5, 0x1, 0x0);
+
+        $ip = \inet_pton($host);
+        if ($ip !== false) {
+            $payload .= \chr(\strlen($ip) === 4 ? 0x1 : 0x4) . $ip;
+        } else {
+            $payload .= \chr(0x3) . \chr(\strlen($host)) . $host;
+        }
+
+        $payload .= \pack('n', $uri->getPort());
+
+        $socket->write($payload);
+    }
 
     use ForbidCloning;
     use ForbidSerialization;
@@ -31,36 +81,41 @@ final class Socks5TunnelConnector implements SocketConnector
         ?Cancellation $cancellation
     ): Socket {
         if (($username === null) !== ($password === null)) {
-            throw new AssertionError("Both or neither username and password must be provided!");
+            throw new \Error("Both or neither username and password must be provided!");
         }
+
         $uri = Uri::createFromString($target);
-        $buffer = '';
-        $read = function (int $length) use ($socket, $cancellation, &$buffer): string {
+
+        $read = function (int $length) use ($socket, $cancellation): string {
             \assert($length > 0);
-            do {
-                $res = $socket->read($cancellation, $length - \strlen($buffer));
-                if ($res === null) {
-                    throw new AssertionError("The socket was closed!");
-                }
-                $buffer .= $res;
-            } while (\strlen($buffer) !== $length);
-            $res = $buffer;
+
             $buffer = '';
-            return $res;
+
+            do {
+                $chunk = $socket->read($cancellation, $length - \strlen($buffer));
+                if ($chunk === null) {
+                    throw new SocketException("The socket was closed before the tunnel could be established");
+                }
+
+                $buffer .= $chunk;
+            } while (\strlen($buffer) !== $length);
+
+            return $buffer;
         };
 
-        $methods = \chr(0);
-        if (isset($username) && isset($password)) {
-            $methods .= \chr(2);
-        }
-        $socket->write(\chr(5) . \chr(\strlen($methods)) . $methods);
+        self::writeHello($username, $password, $socket);
+
         $version = \ord($read(1));
         if ($version !== 5) {
-            throw new RuntimeException("Wrong SOCKS5 version: {$version}");
+            throw new SocketException("Wrong SOCKS5 version: $version");
         }
+
         $method = \ord($read(1));
         if ($method === 2) {
-            \assert($username !== null && $password !== null);
+            if ($username === null || $password === null) {
+                throw new SocketException("Unexpected method: $method");
+            }
+
             $socket->write(
                 \chr(1) .
                 \chr(\strlen($username)) .
@@ -68,42 +123,36 @@ final class Socks5TunnelConnector implements SocketConnector
                 \chr(\strlen($password)) .
                 $password
             );
+
             $version = \ord($read(1));
             if ($version !== 1) {
-                throw new RuntimeException("Wrong authorized SOCKS version: {$version}");
+                throw new SocketException("Wrong authorized SOCKS version: $version");
             }
+
             $result = \ord($read(1));
             if ($result !== 0) {
-                throw new RuntimeException("Wrong authorization status: {$result}");
+                throw new SocketException("Wrong authorization status: $result");
             }
         } elseif ($method !== 0) {
-            throw new RuntimeException("Wrong method: {$method}");
+            throw new SocketException("Unexpected method: $method");
         }
-        $host = $uri->getHost();
-        if ($host === null) {
-            throw new AssertionError("Host is null!");
-        }
-        $payload = \pack('C3', 0x5, 0x1, 0x0);
-        $ip = \inet_pton($host);
-        if ($ip !== false) {
-            $payload .= \chr(\strlen($ip) === 4 ? 0x1 : 0x4) . $ip;
-        } else {
-            $payload .= \chr(0x3) . \chr(\strlen($host)) . $host;
-        }
-        $payload .= \pack('n', $uri->getPort());
-        $socket->write($payload);
+
+        self::writeConnectRequest($uri, $socket);
+
         $version = \ord($read(1));
         if ($version !== 5) {
-            throw new RuntimeException("Wrong SOCKS5 version: {$version}");
+            throw new SocketException("Wrong SOCKS5 version: $version");
         }
-        $rep = \ord($read(1));
-        if ($rep !== 0) {
-            $rep = self::REPS[$rep] ?? $rep;
-            throw new RuntimeException("Wrong SOCKS5 rep: {$rep}");
+
+        $reply = \ord($read(1));
+        if ($reply !== 0) {
+            $reply = self::REPLIES[$reply] ?? $reply;
+            throw new SocketException("Wrong SOCKS5 reply: $reply");
         }
+
         $rsv = \ord($read(1));
         if ($rsv !== 0) {
-            throw new RuntimeException("Wrong socks5 final RSV: {$rsv}");
+            throw new SocketException("Wrong SOCKS5 RSV: $rsv");
         }
 
         $read(match (\ord($read(1))) {
@@ -132,6 +181,6 @@ final class Socks5TunnelConnector implements SocketConnector
 
         $socket = $connector->connect($this->proxyAddress, $context, $cancellation);
 
-        return self::tunnel($socket, (string) $uri, $this->username, $this->password, $cancellation);
+        return self::tunnel($socket, (string)$uri, $this->username, $this->password, $cancellation);
     }
 }
