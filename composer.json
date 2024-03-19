@@ -21,7 +21,7 @@
         "php": ">=8.1",
         "amphp/amp": "^3",
         "amphp/byte-stream": "^2",
-        "amphp/http-client": "^5-beta",
+        "amphp/http-client": "^5",
         "amphp/socket": "^2",
         "league/uri": "^6 | ^7.2"
     },
