@@ -180,6 +180,6 @@ final class Socks5TunnelConnector implements SocketConnector
 
         $socket = $connector->connect($this->proxyAddress, $context, $cancellation);
 
-        return self::tunnel($socket, (string)$uri, $this->username, $this->password, $cancellation);
+        return self::tunnel($socket, (string) $uri, $this->username, $this->password, $cancellation);
     }
 }
