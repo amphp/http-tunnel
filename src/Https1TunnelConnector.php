@@ -20,33 +20,34 @@ use function Amp\Socket\connect;
 use function Amp\Socket\listen;
 use function Amp\Socket\socketConnector;
 
-/** @api */
 final class Https1TunnelConnector implements SocketConnector
 {
     use ForbidCloning;
     use ForbidSerialization;
 
-    private string $proxyAddress;
-    private ClientTlsContext $proxyTlsContext;
-    private array $customHeaders;
-    private ?SocketConnector $socketConnector;
-
-    public function __construct(string $proxyAddress, ClientTlsContext $proxyTls, array $customHeaders = [], ?SocketConnector $socketConnector = null)
-    {
-        $this->proxyAddress = $proxyAddress;
-        $this->proxyTlsContext = $proxyTls;
-        $this->customHeaders = $customHeaders;
-        $this->socketConnector = $socketConnector;
+    public function __construct(
+        private readonly string $proxyAddress,
+        private readonly ClientTlsContext $proxyTlsContext,
+        private readonly array $customHeaders = [],
+        private readonly ?SocketConnector $socketConnector = null,
+    ) {
     }
 
-    public function connect(SocketAddress|string $uri, ?ConnectContext $context = null, ?Cancellation $cancellation = null): Socket
-    {
+    public function connect(
+        SocketAddress|string $uri,
+        ?ConnectContext $context = null,
+        ?Cancellation $cancellation = null
+    ): Socket {
         $socketConnector = $this->socketConnector ?? socketConnector();
-        $context ??= new ConnectContext;
+        $context ??= new ConnectContext();
 
         $start = now();
 
-        $remoteSocket = $socketConnector->connect($this->proxyAddress, $context->withTlsContext($this->proxyTlsContext), $cancellation);
+        $remoteSocket = $socketConnector->connect(
+            $this->proxyAddress,
+            $context->withTlsContext($this->proxyTlsContext),
+            $cancellation,
+        );
 
         $tlsStart = now();
 
@@ -54,9 +55,19 @@ final class Https1TunnelConnector implements SocketConnector
 
         $end = now();
 
-        $remoteSocket = Http1TunnelConnector::tunnel($remoteSocket, $end - $start, $end - $tlsStart, (string) $uri, $this->customHeaders, $cancellation ?? new NullCancellation());
+        $remoteSocket = Http1TunnelConnector::tunnel(
+            socket: $remoteSocket,
+            connectDuration: $end - $start,
+            tlsHandshakeDuration: $end - $tlsStart,
+            target: (string) $uri,
+            customHeaders: $this->customHeaders,
+            cancellation: $cancellation ?? new NullCancellation(),
+        );
 
-        [$serverSocket, $clientSocket] = $this->createPair((new ConnectContext)->withTlsContext($context->getTlsContext()));
+        [
+            $serverSocket,
+            $clientSocket,
+        ] = $this->createPair((new ConnectContext())->withTlsContext($context->getTlsContext()));
 
         async(static function () use ($serverSocket, $remoteSocket) {
             try {
@@ -77,7 +88,9 @@ final class Https1TunnelConnector implements SocketConnector
         return new TunnelSocket($clientSocket, $remoteSocket);
     }
 
-    /** @return list{Socket, Socket} */
+    /**
+     * @return array{Socket, Socket}
+     */
     private function createPair(ConnectContext $connectContext): array
     {
         do {
