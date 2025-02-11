@@ -5,6 +5,7 @@ namespace Amp\Http\Tunnel;
 use Amp\Cancellation;
 use Amp\ForbidCloning;
 use Amp\ForbidSerialization;
+use Amp\Http\HttpMessage;
 use Amp\Http\Tunnel\Internal\TunnelSocket;
 use Amp\NullCancellation;
 use Amp\Socket\ClientTlsContext;
@@ -20,11 +21,17 @@ use function Amp\Socket\connect;
 use function Amp\Socket\listen;
 use function Amp\Socket\socketConnector;
 
+/**
+ * @psalm-import-type HeaderParamArrayType from HttpMessage
+ */
 final class Https1TunnelConnector implements SocketConnector
 {
     use ForbidCloning;
     use ForbidSerialization;
 
+    /**
+     * @param HeaderParamArrayType $customHeaders
+     */
     public function __construct(
         private readonly string $proxyAddress,
         private readonly ClientTlsContext $proxyTlsContext,
