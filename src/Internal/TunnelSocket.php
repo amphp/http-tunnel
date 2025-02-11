@@ -2,6 +2,7 @@
 
 namespace Amp\Http\Tunnel\Internal;
 
+use Amp\ByteStream\ReadableStreamIteratorAggregate;
 use Amp\ByteStream\ResourceStream;
 use Amp\Cancellation;
 use Amp\ForbidCloning;
@@ -21,12 +22,15 @@ use function Amp\Http\Client\processRequest;
 /**
  * @internal
  *
+ * @implements \IteratorAggregate<int, string>
+ *
  * @psalm-import-type HeaderParamArrayType from HttpMessage
  */
-final class TunnelSocket implements Socket
+final class TunnelSocket implements Socket, \IteratorAggregate
 {
     use ForbidCloning;
     use ForbidSerialization;
+    use ReadableStreamIteratorAggregate;
 
     /**
      * @internal
@@ -44,6 +48,7 @@ final class TunnelSocket implements Socket
         $request = new Request('http://' . \str_replace('tcp://', '', $target), 'CONNECT');
         $request->setHeaders($customHeaders);
 
+        $upgradedSocket = null;
         $request->setUpgradeHandler(static function (Socket $socket) use (&$upgradedSocket): void {
             $upgradedSocket = $socket;
         });

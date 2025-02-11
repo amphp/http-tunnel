@@ -7,18 +7,25 @@ use Amp\Http\Client\HttpException;
 use Amp\Http\Client\Request;
 use Amp\Http\Http1\Rfc7230;
 use Amp\Http\Tunnel\Http1TunnelConnector;
+use Amp\Http\Tunnel\Https1TunnelConnector;
+use Amp\Socket\ClientTlsContext;
 
 require __DIR__ . '/../vendor/autoload.php';
 
 try {
+    $useHttps = (bool) ($argv[1] ?? false);
+    $peerName = $argv[1] ?? '';
+
     // If you need authentication, you can set a custom header (using Basic auth here)
     // $connector = new Http1TunnelConnector(new SocketAddress('127.0.0.1', 5512), [
     //     'proxy-authorization' => 'Basic ' . \base64_encode('user:pass'),
     // ]);
 
-    // If you have a proxy accepting HTTPS connections, you need to use Https1TunnelConnector instead:
-    // $connector = new Https1TunnelConnector(new SocketAddress('proxy.example.com', 5512));
-    $socketConnector = new Http1TunnelConnector('127.0.0.1:5512');
+    // If you have a proxy accepting HTTPS connections, the Https1TunnelConnector must be used, providing the
+    // peer name to the instance of ClientTlsContext.
+    $socketConnector = $useHttps
+        ? new Https1TunnelConnector('127.0.0.1:5512', new ClientTlsContext($peerName))
+        : new Http1TunnelConnector('127.0.0.1:5512');
 
     $client = (new HttpClientBuilder)
         ->usingPool(new UnlimitedConnectionPool(new DefaultConnectionFactory($socketConnector)))
@@ -33,7 +40,7 @@ try {
     printf(
         "%s %s HTTP/%s\r\n",
         $request->getMethod(),
-        $request->getUri(),
+        (string) $request->getUri(),
         implode('+', $request->getProtocolVersions())
     );
 
