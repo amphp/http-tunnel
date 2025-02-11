@@ -36,7 +36,7 @@ final class Https1TunnelConnector implements SocketConnector
     public function connect(
         SocketAddress|string $uri,
         ?ConnectContext $context = null,
-        ?Cancellation $cancellation = null
+        ?Cancellation $cancellation = null,
     ): Socket {
         $socketConnector = $this->socketConnector ?? socketConnector();
         $context ??= new ConnectContext();
@@ -55,7 +55,7 @@ final class Https1TunnelConnector implements SocketConnector
 
         $end = now();
 
-        $remoteSocket = Http1TunnelConnector::tunnel(
+        $remoteSocket = TunnelSocket::tunnel(
             socket: $remoteSocket,
             connectDuration: $end - $start,
             tlsHandshakeDuration: $end - $tlsStart,

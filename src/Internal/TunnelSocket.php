@@ -6,24 +6,70 @@ use Amp\ByteStream\ResourceStream;
 use Amp\Cancellation;
 use Amp\ForbidCloning;
 use Amp\ForbidSerialization;
+use Amp\Http\Client\Connection\Http1Connection;
+use Amp\Http\Client\Connection\Stream;
+use Amp\Http\Client\Request;
+use Amp\Http\HttpMessage;
+use Amp\Http\HttpStatus;
+use Amp\Socket\ConnectException;
 use Amp\Socket\Socket;
 use Amp\Socket\SocketAddress;
 use Amp\Socket\TlsInfo;
 use Amp\Socket\TlsState;
+use function Amp\Http\Client\processRequest;
 
-/** @internal */
+/**
+ * @internal
+ *
+ * @psalm-import-type HeaderParamArrayType from HttpMessage
+ */
 final class TunnelSocket implements Socket
 {
     use ForbidCloning;
     use ForbidSerialization;
 
-    private Socket $localSocket;
-    private Socket $remoteSocket;
+    /**
+     * @internal
+     *
+     * @param HeaderParamArrayType $customHeaders
+     */
+    public static function tunnel(
+        Socket $socket,
+        float $connectDuration,
+        ?float $tlsHandshakeDuration,
+        string $target,
+        array $customHeaders,
+        Cancellation $cancellation,
+    ): Socket {
+        $request = new Request('http://' . \str_replace('tcp://', '', $target), 'CONNECT');
+        $request->setHeaders($customHeaders);
 
-    public function __construct(Socket $local, Socket $remote)
-    {
-        $this->localSocket = $local;
-        $this->remoteSocket = $remote;
+        $request->setUpgradeHandler(static function (Socket $socket) use (&$upgradedSocket): void {
+            $upgradedSocket = $socket;
+        });
+
+        $connection = new Http1Connection($socket, $connectDuration, $tlsHandshakeDuration, 1);
+
+        $response = processRequest($request, [], function (Request $request) use ($connection, $cancellation) {
+            /** @var Stream $stream */
+            $stream = $connection->getStream($request);
+
+            return $stream->request($request, $cancellation);
+        });
+
+        if ($response->getStatus() !== HttpStatus::OK) {
+            throw new ConnectException('Failed to connect to proxy: Received a bad status code (' . $response->getStatus() . ')');
+        }
+
+        \assert($upgradedSocket !== null);
+
+        return $upgradedSocket;
+    }
+
+    public function __construct(
+        private readonly Socket $localSocket,
+        private readonly Socket $remoteSocket,
+    ) {
     }
 
     public function setupTls(?Cancellation $cancellation = null): void
@@ -61,7 +107,6 @@ final class TunnelSocket implements Socket
         $this->localSocket->end();
     }
 
-    /** @api */
     public function reference(): void
     {
         \assert($this->localSocket instanceof ResourceStream);
@@ -70,7 +115,6 @@ final class TunnelSocket implements Socket
         $this->remoteSocket->reference();
     }
 
-    /** @api */
     public function unreference(): void
     {
         \assert($this->localSocket instanceof ResourceStream);
