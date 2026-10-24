@@ -41,12 +41,15 @@ final class TunnelSocket implements Socket, \IteratorAggregate
         Socket $socket,
         float $connectDuration,
         ?float $tlsHandshakeDuration,
+        float $connectTimeout,
         string $target,
         array $customHeaders,
         Cancellation $cancellation,
     ): Socket {
         $request = new Request('http://' . \str_replace('tcp://', '', $target), 'CONNECT');
         $request->setHeaders($customHeaders);
+        $request->setTransferTimeout($connectTimeout);
+        $request->setInactivityTimeout($connectTimeout);
 
         $upgradedSocket = null;
         $request->setUpgradeHandler(static function (Socket $socket) use (&$upgradedSocket): void {

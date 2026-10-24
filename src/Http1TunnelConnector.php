@@ -39,6 +39,7 @@ final class Http1TunnelConnector implements SocketConnector
         ?Cancellation $cancellation = null,
     ): Socket {
         $connector = $this->socketConnector ?? socketConnector();
+        $context ??= new ConnectContext();
 
         $start = now();
 
@@ -48,6 +49,7 @@ final class Http1TunnelConnector implements SocketConnector
             socket: $socket,
             connectDuration: now() - $start,
             tlsHandshakeDuration: null,
+            connectTimeout: $context->getConnectTimeout(),
             target: (string) $uri,
             customHeaders: $this->customHeaders,
             cancellation: $cancellation ?? new NullCancellation(),

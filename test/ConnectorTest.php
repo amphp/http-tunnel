@@ -6,11 +6,15 @@ use Amp\Http\Client\Connection\DefaultConnectionFactory;
 use Amp\Http\Client\Connection\UnlimitedConnectionPool;
 use Amp\Http\Client\HttpClientBuilder;
 use Amp\Http\Client\Request;
+use Amp\Http\Client\TimeoutException;
 use Amp\PHPUnit\AsyncTestCase;
+use Amp\Socket\ConnectContext;
 use Amp\Socket\InternetAddress;
 use Amp\Socket\SocketConnector;
 use LeProxy\LeProxy\LeProxyServer;
 use React\EventLoop\Loop;
+use function Amp\async;
+use function Amp\Socket\listen;
 
 class ConnectorTest extends AsyncTestCase
 {
@@ -39,6 +43,25 @@ class ConnectorTest extends AsyncTestCase
         $this->assertStringContainsString('Example Domain', $response->getBody()->buffer());
 
         $socket->close();
+    }
+
+    public function testConnectTimeoutAppliesToTunnelRequest(): void
+    {
+        $this->setTimeout(2);
+
+        $server = listen('127.0.0.1:0');
+        $accept = async($server->accept(...));
+
+        $connector = new Http1TunnelConnector((string) $server->getAddress());
+
+        try {
+            $this->expectException(TimeoutException::class);
+
+            $connector->connect('tcp://example.com:443', (new ConnectContext())->withConnectTimeout(0.5));
+        } finally {
+            $accept->await()?->close();
+            $server->close();
+        }
     }
 
     public static function provideProxy(): array
