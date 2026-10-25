@@ -33,6 +33,17 @@
         "revolt/event-loop-adapter-react": "^1",
         "psalm/phar": "~5.23.0"
     },
+    "config": {
+        "policy": {
+            "advisories": {
+                "ignore-id": [
+                    "PKSA-7xc4-r5ry-fg9s",
+                    "PKSA-wsbn-q9bd-w7z2",
+                    "PKSA-kwfb-dvpm-qtpb"
+                ]
+            }
+        }
+    },
     "autoload": {
         "psr-4": {
             "Amp\\Http\\Tunnel\\": "src"
