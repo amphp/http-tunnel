@@ -66,6 +66,7 @@ final class Https1TunnelConnector implements SocketConnector
             socket: $remoteSocket,
             connectDuration: $end - $start,
             tlsHandshakeDuration: $end - $tlsStart,
+            connectTimeout: $context->getConnectTimeout(),
             target: (string) $uri,
             customHeaders: $this->customHeaders,
             cancellation: $cancellation ?? new NullCancellation(),
